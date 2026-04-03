@@ -96,6 +96,7 @@ def get_valid_coord(label):
         try:
             x     = int(input(f"[{label}] Enter x: "))
             y     = int(input(f"[{label}] Enter y: "))
+            py = height - y # convert Cartesian y → pygame y (inverted)
             theta = int(input(f"[{label}] Enter theta (multiple of 30°): "))
         except ValueError:
             print(" Enter integers only.")
@@ -103,19 +104,19 @@ def get_valid_coord(label):
         if not (0 < x < width):
             print(f" x must be 1–{width-1}")
             continue
-        if not (0 < y < height):
+        if not (0 < py < height):
             print(f" y must be 1–{height-1}")
             continue
         if theta % 30 != 0:
             print(" Theta must be a multiple of 30.")
             continue
         
-        if not is_free_space(x, y):
+        if not is_free_space(x, py):
             print(" Point is inside an obstacle.")
             continue
         
         # convert user (Cartesian) → pygame
-        py = height - y
+        
         return (x, py, theta % 360)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -146,16 +147,16 @@ available_turns = [-60, -30, 0, 30, 60]
 
 def apply_action(state, turn_deg, L):
     x, y, theta = state
-    new_theta = (theta + turn_deg) % 360
-    rad = math.radians(new_theta)
+    new_theta = (theta + turn_deg) % 360 # keep oreintation 0-359
+    rad = math.radians(new_theta) # convert to radians for trig functions
     new_x = x + L * math.cos(rad)
-    new_y = y - L * math.sin(rad)          # y-axis flipped in pygame
+    new_y = y - L * math.sin(rad)#   y-axis flipped in pygame
 
-    # sample along the segment to check any mid-path obstacles
+    # Collision checking each small steps along the path
     steps = max(1, int(L * 2))
-    for t in range(steps + 1):
-        frac = t / steps
-        ix = x + frac * (new_x - x)
+    for t in range(steps + 1): # check points along the path at intervals of 0.5 units
+        frac = t / steps # fraction of the way along the path
+        ix = x + frac * (new_x - x) 
         iy = y + frac * (new_y - y)
         if not is_free_space(int(round(ix)), int(round(iy))): # mid-path obstacle
             return None
@@ -187,3 +188,21 @@ def get_neighbors(state, L):
         if ns is not None:
             results.append((ns, float(L)))
     return results
+
+def angle_diff(a, b):
+    diff = abs(a - b) % 360
+    return min(diff, 360 - diff)
+
+def is_duplicate_node(n1, n2):   # checks if duplicated node : 1. distance < 0.5 units, 2. angle difference < 30 degrees
+    thetha_threshold = 30
+    euclidean_threshold = 0.5
+    
+     # distance check btw positions
+    dx = n1[0] - n2[0]
+    dy = n1[1] - n2[1]
+    euclidean_threshold = math.sqrt(dx*dx + dy*dy)
+    # angle check btw orientations
+    diff = abs(n1[2]- n2[2]) % 360
+    thetha_threshold = min(diff, 360 - diff) # angle wrap around check ex:0,350 = 10 degree difference, not 350
+    return euclidean_threshold < 0.5 and thetha_threshold < 30
+    
